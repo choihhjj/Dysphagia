@@ -1,0 +1,17 @@
+# Dependencies for the multimodal fundus image classification codebase.
+#
+# PyTorch installation depends on your CUDA version.
+# Visit https://pytorch.org/get-started/locally/ to get the correct command,
+# for example:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+#
+# All other packages can be installed with:
+#   pip install -r requirements.txt  (after installing torch/torchvision separately)
+
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+opencv-python>=4.8.0
+tqdm>=4.65.0

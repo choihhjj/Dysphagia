@@ -1,4 +1,4 @@
-# Dependencies for the multimodal fundus image classification codebase.
+# Dependencies for M-mode ultrasound-based dysphagia severity classification
 #
 # PyTorch installation depends on your CUDA version.
 # Visit https://pytorch.org/get-started/locally/ to get the correct command,

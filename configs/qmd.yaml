@@ -1,0 +1,3 @@
+INPUT_CSV: outputs/swallowing/qmd_input.csv   # filename, image_dura
+DATA_DIR: outputs/swallowing/cut              # 334 x 600 images
+OUTPUT_CSV: outputs/qmd/qmd_features.csv

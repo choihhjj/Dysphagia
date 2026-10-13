@@ -4,10 +4,8 @@ import json
 import os
 
 import pandas as pd
-from sklearn.metrics import (
-    roc_auc_score, average_precision_score,
-    accuracy_score, recall_score, precision_score, f1_score,
-)
+
+from src.metrics import compute_metrics
 
 
 def load_fold_inference(output_base, fold):
@@ -42,16 +40,7 @@ def build_ensemble(output_base, n_folds=5, threshold=0.5):
 
 def compute_ensemble_metrics(df):
     """Compute binary classification metrics for the ensemble predictions."""
-    trues, probs, preds = df['label'], df['prob_ensemble'], df['pred_ensemble']
-    return {
-        'auc':         roc_auc_score(trues, probs),
-        'prauc':       average_precision_score(trues, probs),
-        'acc':         accuracy_score(trues, preds),
-        'sensitivity': recall_score(trues, preds, pos_label=1, zero_division=0),
-        'specificity': recall_score(trues, preds, pos_label=0, zero_division=0),
-        'precision':   precision_score(trues, preds, zero_division=0),
-        'f1':          f1_score(trues, preds, zero_division=0),
-    }
+    return compute_metrics(df['label'], df['prob_ensemble'], df['pred_ensemble'])
 
 
 def save_ensemble(output_base, n_folds=5, threshold=0.5):

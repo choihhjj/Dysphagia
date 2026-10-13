@@ -3,17 +3,13 @@
 import json
 import os
 
-import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
-from sklearn.metrics import (
-    roc_auc_score, average_precision_score,
-    accuracy_score, recall_score, precision_score, f1_score,
-)
 
 import torch
 
-from src.train_multimodal import _build_enhanced_features
+from src.metrics import compute_metrics
+from src.train_multimodal import QUANTI_COLUMNS, _build_enhanced_features
 
 
 def inference_image_only(model, test_loader, device, model_ckpt, mode='test'):
@@ -35,7 +31,7 @@ def inference_image_only(model, test_loader, device, model_ckpt, mode='test'):
             trues += labels.detach().cpu().numpy().tolist()
             paths.extend(path)
 
-    metrics = _compute_metrics(trues, probs, preds)
+    metrics = compute_metrics(trues, probs, preds)
     print(f'[{mode}] AUC: {metrics["auc"]:.3f} | Acc: {metrics["acc"]:.3f}')
 
     results = pd.DataFrame({'image_path': paths, 'prob': probs, 'pred': preds, 'label': trues})
@@ -74,7 +70,7 @@ def inference_feature_only(fc_model, X_test, y_test, path_test, device, model_ck
             trues += batch_y.detach().cpu().numpy().tolist()
             paths += [path_test[j] for j in range(i, end)]
 
-    metrics = _compute_metrics(trues, probs, preds)
+    metrics = compute_metrics(trues, probs, preds)
     print(f'[{mode}] AUC: {metrics["auc"]:.3f} | Acc: {metrics["acc"]:.3f}')
 
     results = pd.DataFrame({'image_path': paths, 'prob': probs, 'pred': preds, 'label': trues})
@@ -89,7 +85,7 @@ def inference_feature_only(fc_model, X_test, y_test, path_test, device, model_ck
 
 
 def inference_multimodal(fc_model, test_features, test_paths, test_df,
-                         device, model_ckpt, batch_size, mode='test'):
+                         device, model_ckpt, batch_size, mode='test', quanti_columns=QUANTI_COLUMNS):
     """Run inference for the multimodal model; saves results csv and metrics json. Returns (auc, results_df)."""
     fc_model.load_state_dict(
         torch.load(os.path.join(model_ckpt, 'best_model_multimodal.pt'),
@@ -99,7 +95,7 @@ def inference_multimodal(fc_model, test_features, test_paths, test_df,
     fc_model.eval()
 
     test_labels = test_df['label'].values
-    enhanced_test = _build_enhanced_features(test_features, test_paths, test_df)
+    enhanced_test = _build_enhanced_features(test_features, test_paths, test_df, quanti_columns)
 
     probs, preds, trues, paths = [], [], [], []
     with torch.no_grad():
@@ -116,7 +112,7 @@ def inference_multimodal(fc_model, test_features, test_paths, test_df,
             trues += batch_y.detach().cpu().numpy().tolist()
             paths += [test_paths[j] for j in range(i, end)]
 
-    metrics = _compute_metrics(trues, probs, preds)
+    metrics = compute_metrics(trues, probs, preds)
     print(f'[{mode}] AUC: {metrics["auc"]:.3f} | Acc: {metrics["acc"]:.3f}')
 
     results = pd.DataFrame({'image_path': paths, 'prob': probs, 'pred': preds, 'label': trues})
@@ -128,16 +124,3 @@ def inference_multimodal(fc_model, test_features, test_paths, test_df,
         json.dump(metrics, f, indent=4)
 
     return metrics['auc'], results
-
-
-def _compute_metrics(trues, probs, preds):
-    """Compute binary classification metrics; returns dict with auc, prauc, acc, sensitivity, specificity, precision, f1."""
-    return {
-        'auc':         roc_auc_score(trues, probs),
-        'prauc':       average_precision_score(trues, probs),
-        'acc':         accuracy_score(trues, preds),
-        'sensitivity': recall_score(trues, preds, pos_label=1, zero_division=0),
-        'specificity': recall_score(trues, preds, pos_label=0, zero_division=0),
-        'precision':   precision_score(trues, preds, zero_division=0),
-        'f1':          f1_score(trues, preds, zero_division=0),
-    }

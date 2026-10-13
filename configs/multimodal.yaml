@@ -1,0 +1,27 @@
+DATASET_CSV: path/to/final_dataset.csv
+OUTPUT_BASE: outputs/multimodal
+IO_CHECKPOINT_BASE: outputs/image_only
+
+N_FOLDS: 5
+SEED: 42
+
+QUANTI_COLUMNS: [QMD_sup2, QMD_sup1, QMD_ref, QMD_inf1, QMD_inf2,
+                 QMD_inf3, QMD_inf4, QMD_inf5, QMD_inf6, QMD_inf7]
+IMAGE_FEATURE_DIM: 512
+
+# frozen ResNet-18 (512) + QMD (10)
+# Linear(522, 384) - ReLU - Dropout(0.1) - Linear(384, 32) - ReLU - Dropout(0.1) - Linear(32, 2)
+IMAGE_ENCODER: resnet18
+N_LAYERS: 2
+FIRST_HIDDEN: 384
+HIDDEN_SIZE: [32]
+USE_DROPOUT: true
+DROPOUT_RATE: 0.1
+
+EPOCHS: 50
+LEARNING_RATE: 1.0e-5
+BATCH_SIZE: 8
+WEIGHT_DECAY: 1.0e-3
+LABEL_SMOOTHING: 0.08
+USE_CLASS_WEIGHT: true
+NUM_WORKERS: 0

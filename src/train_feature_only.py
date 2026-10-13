@@ -6,7 +6,6 @@ import json
 
 import numpy as np
 import pandas as pd
-from tqdm.auto import tqdm
 from sklearn.metrics import (
     roc_auc_score, average_precision_score,
     recall_score, accuracy_score,
@@ -46,8 +45,8 @@ def train_feature_only(fc_model, quanti_columns,
         'epoch': [], 'train_loss': [], 'val_loss': [],
         'train_auc': [], 'train_acc': [],
         'val_auc': [], 'val_acc': [],
-        'val_sensitivity': [], 'val_precision': [],
-        'val_specificity': [], 'val_f1': [],
+        'val_sensitivity': [], 'val_specificity': [],
+        'val_ppv': [], 'val_npv': [], 'val_f1': [],
     }
 
     best_val_f1 = -1.0
@@ -85,8 +84,8 @@ def train_feature_only(fc_model, quanti_columns,
         _train_acc = accuracy_score(trues, preds)
 
         (_val_loss, _val_auc, _val_acc,
-         _val_sensitivity, _val_precision,
-         _val_specificity, _val_f1, _val_result) = _validate_feature_only(
+         _val_sensitivity, _val_specificity,
+         _val_ppv, _val_npv, _val_f1, _val_result) = _validate_feature_only(
             fc_model, criterion, X_val, y_val, path_val, device, batch_size
         )
         _val_prauc = average_precision_score(_val_result['label'], _val_result['prob'])
@@ -96,6 +95,7 @@ def train_feature_only(fc_model, quanti_columns,
             f'Train Loss: {_train_loss:.3f} | Val Loss: {_val_loss:.3f} | '
             f'Train AUC: {_train_auc:.3f} | Val AUC: {_val_auc:.3f} | '
             f'Val Sen: {_val_sensitivity:.3f} | Val Spe: {_val_specificity:.3f} | '
+            f'Val PPV: {_val_ppv:.3f} | Val NPV: {_val_npv:.3f} | '
             f'Val F1: {_val_f1:.3f}'
         )
 
@@ -107,8 +107,9 @@ def train_feature_only(fc_model, quanti_columns,
         history['train_acc'].append(_train_acc)
         history['val_acc'].append(_val_acc)
         history['val_sensitivity'].append(_val_sensitivity)
-        history['val_precision'].append(_val_precision)
         history['val_specificity'].append(_val_specificity)
+        history['val_ppv'].append(_val_ppv)
+        history['val_npv'].append(_val_npv)
         history['val_f1'].append(_val_f1)
 
         if _val_f1 > best_val_f1:
@@ -124,8 +125,8 @@ def train_feature_only(fc_model, quanti_columns,
                 'train_auc': _train_auc, 'val_auc': _val_auc,
                 'train_prauc': _train_prauc, 'val_prauc': _val_prauc,
                 'train_acc': _train_acc, 'val_acc': _val_acc,
-                'val_sensitivity': _val_sensitivity, 'val_precision': _val_precision,
-                'val_specificity': _val_specificity, 'val_f1': _val_f1,
+                'val_sensitivity': _val_sensitivity, 'val_specificity': _val_specificity,
+                'val_ppv': _val_ppv, 'val_npv': _val_npv, 'val_f1': _val_f1,
             }
             with open(os.path.join(model_ckpt, 'best_model_metric_feature_only.json'), 'w') as f:
                 json.dump(best_metric, f, indent=4)
@@ -170,8 +171,9 @@ def _validate_feature_only(fc_model, criterion, X_val, y_val, path_val, device, 
     _val_auc = roc_auc_score(trues, probs)
     _val_acc = accuracy_score(trues, preds)
     _val_sensitivity = recall_score(trues, preds, zero_division=0)
-    _val_precision = precision_score(trues, preds, zero_division=0)
     _val_specificity = recall_score(trues, preds, pos_label=0, zero_division=0)
+    _val_ppv = precision_score(trues, preds, pos_label=1, zero_division=0)
+    _val_npv = precision_score(trues, preds, pos_label=0, zero_division=0)
     _val_f1 = f1_score(trues, preds, zero_division=0)
 
     val_result = pd.DataFrame(
@@ -180,5 +182,5 @@ def _validate_feature_only(fc_model, criterion, X_val, y_val, path_val, device, 
     val_result['image_path'] = [p.split('/')[-1] for p in val_result['image_path']]
 
     return (_val_loss, _val_auc, _val_acc,
-            _val_sensitivity, _val_precision,
-            _val_specificity, _val_f1, val_result)
+            _val_sensitivity, _val_specificity,
+            _val_ppv, _val_npv, _val_f1, val_result)

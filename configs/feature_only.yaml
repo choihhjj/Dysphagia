@@ -1,0 +1,21 @@
+DATASET_CSV: path/to/final_dataset.csv
+OUTPUT_BASE: outputs/feature_only
+
+N_FOLDS: 5
+SEED: 42
+
+QUANTI_COLUMNS: [QMD_sup2, QMD_sup1, QMD_ref, QMD_inf1, QMD_inf2,
+                 QMD_inf3, QMD_inf4, QMD_inf5, QMD_inf6, QMD_inf7]
+
+# Linear(10, 16) - ReLU - Dropout(0.2) - Linear(16, 2)
+N_LAYERS: 2
+FIRST_HIDDEN: 16
+HIDDEN_SIZE: null
+USE_DROPOUT: true
+DROPOUT_RATE: 0.2
+
+EPOCHS: 50
+LEARNING_RATE: 1.0e-3
+BATCH_SIZE: 8
+WEIGHT_DECAY: 1.0e-4
+LABEL_SMOOTHING: 0.0

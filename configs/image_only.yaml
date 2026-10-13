@@ -1,0 +1,17 @@
+DATASET_CSV: path/to/final_dataset.csv
+OUTPUT_BASE: outputs/image_only
+
+N_FOLDS: 5
+SEED: 42
+
+MODEL_NAME: resnet18      # resnet18 | densenet121 | efficientnet_b0 | mobilenet_v2 | inceptionv3
+MODEL_PT: true            # ImageNet-1K pretrained
+NUM_CLASSES: 2
+
+EPOCHS: 500
+LEARNING_RATE: 1.0e-5
+BATCH_SIZE: 8
+WEIGHT_DECAY: 1.0e-3
+LABEL_SMOOTHING: 0.08
+USE_CLASS_WEIGHT: true
+NUM_WORKERS: 0

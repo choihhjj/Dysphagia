@@ -1,0 +1,10 @@
+outputs/
+ex_data/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+*.pt
+*.jpg
+*.png
+*.tif
+*.tiff

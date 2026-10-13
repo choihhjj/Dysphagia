@@ -1,0 +1,8 @@
+ANNOTATION_CSV: path/to/annotation.csv   # filename, swallowing_start, swallowing_end (x coordinates, px)
+RAW_DIR: path/to/raw_mmode               # <filename>.jpg
+OUTPUT_DIR: outputs/swallowing
+
+PRE_ONSET_PX: 60        # 1 s (60 px = 1 s)
+WINDOW_PX: 600          # 10 s
+Y_RANGE: [10, 344]
+UPPER_CUT_RATIO: 0.2

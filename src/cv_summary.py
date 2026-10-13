@@ -3,12 +3,15 @@
 import os
 
 import pandas as pd
+
 from sklearn.metrics import (
     accuracy_score, roc_auc_score, average_precision_score,
     recall_score, precision_score, f1_score,
 )
 
-METRICS = ['acc', 'auc', 'prauc', 'sen', 'spe', 'ppv', 'f1']
+from src.metrics import fmt
+
+METRICS = ['acc', 'auc', 'prauc', 'sen', 'spe', 'ppv', 'npv', 'f1']
 
 
 def calc_metrics(df, model_name, fold, split):
@@ -22,7 +25,8 @@ def calc_metrics(df, model_name, fold, split):
         'prauc':     average_precision_score(df['label'], df['prob']),
         'sen':       recall_score(df['label'], df['pred'], pos_label=1, zero_division=0),
         'spe':       recall_score(df['label'], df['pred'], pos_label=0, zero_division=0),
-        'ppv':       precision_score(df['label'], df['pred'], zero_division=0),
+        'ppv':       precision_score(df['label'], df['pred'], pos_label=1, zero_division=0),
+        'npv':       precision_score(df['label'], df['pred'], pos_label=0, zero_division=0),
         'f1':        f1_score(df['label'], df['pred'], zero_division=0),
     }
 
@@ -50,9 +54,9 @@ def cv_results(model_name, output_base, n_folds=5):
     mean_sd_df = pd.DataFrame()
     for m in METRICS:
         mean_sd_df[m] = (
-            summary[(m, 'mean')].map(lambda x: f"{x:.2f}")
+            summary[(m, 'mean')].map(fmt)
             + '±'
-            + summary[(m, 'std')].map(lambda x: f"{x:.2f}")
+            + summary[(m, 'std')].map(fmt)
         )
     mean_sd_df = mean_sd_df.reset_index()
     mean_sd_df.insert(0, 'fold', 'mean±sd')

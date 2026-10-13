@@ -51,12 +51,12 @@ def extract_features(model, data_loader, checkpoint_path, device):
     return torch.cat(features_list, dim=0), paths_list, labels_list
 
 
-def _build_enhanced_features(image_features, paths_list, df):
+def _build_enhanced_features(image_features, paths_list, df, quanti_columns=QUANTI_COLUMNS):
     """Concatenate 512-dim image features with quantitative measurements; returns float32 array of shape (N, 522)."""
     assert len(image_features) == len(paths_list), (
         f"image_features length ({len(image_features)}) != paths_list length ({len(paths_list)})"
     )
-    quanti_lookup = df.set_index('img_dir')[QUANTI_COLUMNS]
+    quanti_lookup = df.set_index('img_dir')[list(quanti_columns)]
     enhanced = []
     for feat, path in zip(image_features, paths_list):
         quanti = quanti_lookup.loc[path].values.astype(np.float32)
@@ -68,15 +68,15 @@ def train_multimodal(fc_model,
                      train_loader, train_features, train_paths, train_labels, train_df,
                      val_features, val_paths, val_labels, val_df,
                      num_epochs, batch_size, optimizer, scheduler, label_smoothing,
-                     model_ckpt, device):
+                     model_ckpt, device, quanti_columns=QUANTI_COLUMNS):
     """Train the multimodal MLP; returns (best_model, best_val_f1)."""
     fc_model.to(device)
 
     train_labels_arr = np.array(train_labels)
     val_labels_arr = np.array(val_labels)
 
-    enhanced_train = _build_enhanced_features(train_features, train_paths, train_df)
-    enhanced_val = _build_enhanced_features(val_features, val_paths, val_df)
+    enhanced_train = _build_enhanced_features(train_features, train_paths, train_df, quanti_columns)
+    enhanced_val = _build_enhanced_features(val_features, val_paths, val_df, quanti_columns)
 
     cl_list, class_weight = calculate_class_weight_from_loader(train_loader)
     criterion = nn.CrossEntropyLoss(
@@ -90,8 +90,8 @@ def train_multimodal(fc_model,
         'epoch': [], 'train_loss': [], 'val_loss': [],
         'train_auc': [], 'train_acc': [],
         'val_auc': [], 'val_acc': [],
-        'val_sensitivity': [], 'val_precision': [],
-        'val_specificity': [], 'val_f1': [],
+        'val_sensitivity': [], 'val_specificity': [],
+        'val_ppv': [], 'val_npv': [], 'val_f1': [],
     }
 
     best_val_f1 = -1.0
@@ -133,8 +133,8 @@ def train_multimodal(fc_model,
         _train_acc = accuracy_score(trues, preds)
 
         (_val_loss, _val_auc, _val_acc,
-         _val_sensitivity, _val_precision,
-         _val_specificity, _val_f1, _val_result) = _validate_multimodal(
+         _val_sensitivity, _val_specificity,
+         _val_ppv, _val_npv, _val_f1, _val_result) = _validate_multimodal(
             fc_model, criterion, enhanced_val, val_labels_arr, val_paths, device, batch_size
         )
         _val_prauc = average_precision_score(_val_result['label'], _val_result['prob'])
@@ -144,6 +144,7 @@ def train_multimodal(fc_model,
             f'Train Loss: {_train_loss:.3f} | Val Loss: {_val_loss:.3f} | '
             f'Train AUC: {_train_auc:.3f} | Val AUC: {_val_auc:.3f} | '
             f'Val Sen: {_val_sensitivity:.3f} | Val Spe: {_val_specificity:.3f} | '
+            f'Val PPV: {_val_ppv:.3f} | Val NPV: {_val_npv:.3f} | '
             f'Val F1: {_val_f1:.3f}'
         )
 
@@ -155,8 +156,9 @@ def train_multimodal(fc_model,
         history['train_acc'].append(_train_acc)
         history['val_acc'].append(_val_acc)
         history['val_sensitivity'].append(_val_sensitivity)
-        history['val_precision'].append(_val_precision)
         history['val_specificity'].append(_val_specificity)
+        history['val_ppv'].append(_val_ppv)
+        history['val_npv'].append(_val_npv)
         history['val_f1'].append(_val_f1)
 
         if scheduler is not None:
@@ -175,8 +177,8 @@ def train_multimodal(fc_model,
                 'train_auc': _train_auc, 'val_auc': _val_auc,
                 'train_prauc': _train_prauc, 'val_prauc': _val_prauc,
                 'train_acc': _train_acc, 'val_acc': _val_acc,
-                'val_sensitivity': _val_sensitivity, 'val_precision': _val_precision,
-                'val_specificity': _val_specificity, 'val_f1': _val_f1,
+                'val_sensitivity': _val_sensitivity, 'val_specificity': _val_specificity,
+                'val_ppv': _val_ppv, 'val_npv': _val_npv, 'val_f1': _val_f1,
             }
             with open(os.path.join(model_ckpt, 'best_model_metric_multimodal.json'), 'w') as f:
                 json.dump(best_metric, f, indent=4)
@@ -222,8 +224,9 @@ def _validate_multimodal(fc_model, criterion, val_features, val_labels, val_path
     _val_auc = roc_auc_score(trues, probs)
     _val_acc = accuracy_score(trues, preds)
     _val_sensitivity = recall_score(trues, preds, zero_division=0)
-    _val_precision = precision_score(trues, preds, zero_division=0)
     _val_specificity = recall_score(trues, preds, pos_label=0, zero_division=0)
+    _val_ppv = precision_score(trues, preds, pos_label=1, zero_division=0)
+    _val_npv = precision_score(trues, preds, pos_label=0, zero_division=0)
     _val_f1 = f1_score(trues, preds, zero_division=0)
 
     val_result = pd.DataFrame(
@@ -232,5 +235,5 @@ def _validate_multimodal(fc_model, criterion, val_features, val_labels, val_path
     val_result['image_path'] = [p.split('/')[-1] for p in val_result['image_path']]
 
     return (_val_loss, _val_auc, _val_acc,
-            _val_sensitivity, _val_precision,
-            _val_specificity, _val_f1, val_result)
+            _val_sensitivity, _val_specificity,
+            _val_ppv, _val_npv, _val_f1, val_result)

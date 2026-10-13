@@ -1,7 +1,9 @@
 """5-fold cross-validation for the multimodal model.
 
 Requires run_image_only.py to be run first.
-Usage: python scripts/run_multimodal.py
+Usage: python scripts/run_multimodal.py [--config configs/multimodal.yaml]
+                                        [--dataset_csv PATH] [--output_base DIR]
+                                        [--io_checkpoint_base DIR]
 """
 
 import os
@@ -14,7 +16,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from configs.config import seed_everything, seed_worker, device
+from configs.config import seed_everything, seed_worker, device, parse_config
 from src.dataset import CustomDataset
 from src.model import get_model, create_fc_model
 from src.train_multimodal import extract_features, train_multimodal
@@ -22,45 +24,19 @@ from src.test import inference_multimodal
 from src.cv_summary import save_cv_summary
 from src.cv_ensemble import save_ensemble
 
-# ── paths (edit before running) ──────────────────────────────────────────────
-DATASET_CSV        = 'path/to/final_dataset.csv'   # columns: filename, img_dir, label, fold1-fold5
-OUTPUT_BASE        = 'outputs/multimodal'
-IO_CHECKPOINT_BASE = 'outputs/image_only'          # directory containing fold1…fold5 from run_image_only.py
-# ─────────────────────────────────────────────────────────────────────────────
-
-QUANTI_COLUMNS = [
-    'QMD_sup2', 'QMD_sup1', 'QMD_ref',
-    'QMD_inf1', 'QMD_inf2', 'QMD_inf3',
-    'QMD_inf4', 'QMD_inf5', 'QMD_inf6', 'QMD_inf7',
-]
-IMAGE_FEATURE_DIM = 512   # ResNet18 penultimate-layer dimension
-
-CFG = {
-    'EPOCHS':           50,
-    'LEARNING_RATE':    1e-5,
-    'BATCH_SIZE':       8,
-    'WEIGHT_DECAY':     1e-3,
-    'LABEL_SMOOTHING':  0.08,
-    'USE_CLASS_WEIGHT': True,
-    'SEED':             42,
-    'IMAGE_ENCODER':    'resnet18',
-    'N_LAYERS':         2,
-    'FIRST_HIDDEN':     384,
-    'HIDDEN_SIZE':      [32],
-    'USE_DROPOUT':      True,
-    'DROPOUT_RATE':     0.1,
-}
+# Hyperparameters, QMD columns and paths are defined in configs/multimodal.yaml.
+CFG = None   # loaded in __main__
 
 
 def run_fold(fold):
     """Train and evaluate the multimodal model for a single fold."""
-    model_ckpt = os.path.join(OUTPUT_BASE, f'fold{fold}')
-    io_ckpt    = os.path.join(IO_CHECKPOINT_BASE, f'fold{fold}')
+    model_ckpt = os.path.join(CFG['OUTPUT_BASE'], f'fold{fold}')
+    io_ckpt    = os.path.join(CFG['IO_CHECKPOINT_BASE'], f'fold{fold}')
     os.makedirs(model_ckpt, exist_ok=True)
 
     seed_everything(CFG['SEED'])
 
-    filelist = pd.read_csv(DATASET_CSV).sort_values('filename').reset_index(drop=True)
+    filelist = pd.read_csv(CFG['DATASET_CSV']).sort_values('filename').reset_index(drop=True)
     train_df = filelist[filelist[f'fold{fold}'] == 'train'].reset_index(drop=True)
     val_df   = filelist[filelist[f'fold{fold}'] == 'val'].reset_index(drop=True)
     test_df  = filelist[filelist[f'fold{fold}'] == 'test'].reset_index(drop=True)
@@ -85,25 +61,24 @@ def run_fold(fold):
 
     train_loader = DataLoader(
         train_dataset, batch_size=CFG['BATCH_SIZE'],
-        shuffle=True, drop_last=True, num_workers=0,
+        shuffle=True, drop_last=True, num_workers=CFG['NUM_WORKERS'],
         worker_init_fn=seed_worker,
         generator=torch.Generator().manual_seed(CFG['SEED']),
     )
     val_loader = DataLoader(
         val_dataset, batch_size=CFG['BATCH_SIZE'],
-        shuffle=False, num_workers=0,
+        shuffle=False, num_workers=CFG['NUM_WORKERS'],
         worker_init_fn=seed_worker,
         generator=torch.Generator().manual_seed(CFG['SEED']),
     )
     test_loader = DataLoader(
         test_dataset, batch_size=CFG['BATCH_SIZE'],
-        shuffle=False, num_workers=0,
+        shuffle=False, num_workers=CFG['NUM_WORKERS'],
         worker_init_fn=seed_worker,
         generator=torch.Generator().manual_seed(CFG['SEED']),
     )
 
-    fold_cfg = {**CFG, 'MODEL_CKPT': model_ckpt, 'IO_CKPT': io_ckpt,
-                'QUANTI_COLUMNS': QUANTI_COLUMNS}
+    fold_cfg = {**CFG, 'MODEL_CKPT': model_ckpt, 'IO_CKPT': io_ckpt}
     with open(os.path.join(model_ckpt, 'config.json'), 'w') as f:
         json.dump(fold_cfg, f, indent=4)
 
@@ -121,7 +96,7 @@ def run_fold(fold):
     seed_everything(CFG['SEED'])   # re-seed before MLP weight init
 
     fc_model = create_fc_model(
-        input_size=IMAGE_FEATURE_DIM + len(QUANTI_COLUMNS),
+        input_size=CFG['IMAGE_FEATURE_DIM'] + len(CFG['QUANTI_COLUMNS']),
         n_layers=CFG['N_LAYERS'],
         first_hidden=CFG['FIRST_HIDDEN'],
         hidden_sizes=CFG['HIDDEN_SIZE'],
@@ -146,19 +121,22 @@ def run_fold(fold):
         label_smoothing=CFG['LABEL_SMOOTHING'],
         model_ckpt=model_ckpt,
         device=device,
+        quanti_columns=CFG['QUANTI_COLUMNS'],
     )
 
     inference_multimodal(
         best_model, test_feats, test_paths, test_df,
         device, model_ckpt, CFG['BATCH_SIZE'], mode='test',
+        quanti_columns=CFG['QUANTI_COLUMNS'],
     )
 
 
 if __name__ == '__main__':
-    for fold in range(1, 6):
-        print(f'\n{"="*40}\nFold {fold}/5\n{"="*40}')
+    CFG = parse_config('multimodal.yaml', __doc__)
+    n_folds = CFG['N_FOLDS']
+    for fold in range(1, n_folds + 1):
+        print(f'\n{"="*40}\nFold {fold}/{n_folds}\n{"="*40}')
         run_fold(fold)
 
-    save_cv_summary('multimodal', OUTPUT_BASE)
-    save_ensemble(OUTPUT_BASE)
-    
+    save_cv_summary('multimodal', CFG['OUTPUT_BASE'], n_folds)
+    save_ensemble(CFG['OUTPUT_BASE'], n_folds)

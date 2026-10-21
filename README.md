@@ -129,6 +129,32 @@ python scripts/run_shap.py --dataset_csv path/to/final_dataset.csv --fold 2
   The representative fold (fold 2) is the fold with the median validation F1-score of the image-only
   model.
 
+### 6. Inference with trained checkpoints
+
+```bash
+python scripts/run_inference.py --csv data/testset_sample_qmd.csv --model multimodal --checkpoint_dir checkpoints
+```
+
+- Sample data: `data/` contains 20 de-identified test-set images (600 × 268; 10 mild and 10 severe,
+  randomly selected from each class of the 102 test images) and `testset_sample_qmd.csv` with their QMD
+  parameters (`filename` and the `QMD_*` columns). Images are read from the CSV directory
+  (or `--image_dir`).
+- Checkpoints: the trained weights of the five fold-specific models used in the study are provided in
+  `checkpoints/`, with the training-set normalization statistics of each fold. The multimodal model also
+  uses `checkpoints/image_only/` as its image encoder.
+
+  ```
+  checkpoints/
+  ├── image_only/fold{1-5}/      best_model.pt, dataset_statistics.json
+  ├── feature_only/fold{1-5}/    best_model_feature_only.pt
+  └── multimodal/fold{1-5}/      best_model_multimodal.pt, dataset_statistics.json
+  ```
+- Output: saved next to the input CSV as `<csv>_inference_<model>.csv` (a trailing `_qmd` in the CSV name
+  is dropped, e.g. `data/testset_sample_inference_multimodal.csv`; or `--output`), with `prob_fold{k}`,
+  `pred_fold{k}`, `prob_ensemble`, and `pred_ensemble`.
+- Minor numerical differences (< 10⁻³) in predicted probabilities may occur due to GPU floating-point
+  non-determinism, for example when running a subset of the test set; predicted classes are unaffected.
+
 ## Model configurations
 
 Hyperparameters (selected by grid search on the mean validation F1-score across the five folds) are in
@@ -186,6 +212,8 @@ outputs/qmd/                       # qmd_features.csv
 outputs/bootstrap/                 # bootstrap_<model1>_vs_<model2>{,_table,_raw}.csv
 outputs/figures/                   # roc_cm.png / .tif
 outputs/shap/                      # SHAP importance CSVs and summary plots
+
+data/<csv>_inference_<model>.csv   # run_inference.py (saved next to the input CSV)
 ```
 
 ## Repository structure
@@ -199,6 +227,8 @@ outputs/shap/                      # SHAP importance CSVs and summary plots
 │   ├── image_only.yaml
 │   ├── feature_only.yaml
 │   └── multimodal.yaml
+├── checkpoints/               # trained weights and normalization statistics (5 folds)
+├── data/                      # sample test-set images and testset_sample_qmd.csv
 ├── qmd/
 │   ├── qmd.py
 │   └── qmd_structure.md
@@ -212,7 +242,8 @@ outputs/shap/                      # SHAP importance CSVs and summary plots
 │   ├── cv_ensemble.py
 │   ├── run_bootstrap.py
 │   ├── plot_roc_cm.py
-│   └── run_shap.py
+│   ├── run_shap.py
+│   └── run_inference.py
 ├── src/
 │   ├── dataset.py
 │   ├── model.py
@@ -232,10 +263,9 @@ outputs/shap/                      # SHAP importance CSVs and summary plots
 
 ## Data availability
 
-The ultrasound data cannot be shared publicly due to ethical restrictions and patient privacy.
-De-identified derived data are available from the corresponding author upon reasonable request,
-subject to institutional and ethical approval. The anonymized data split is provided as a supplementary
-table of the paper.
+The full dataset cannot be shared publicly due to patient privacy restrictions; see the Data availability
+statement of the paper for access. A de-identified sample of the test set (20 images with their QMD
+parameters) is provided in `data/` to reproduce the inference pipeline.
 
 ## Citation
 

@@ -977,7 +977,7 @@ def find_range_y_mean(image, which_y = 0):
         m_range, x_max, x_min = [0] * 3
     
     else:
-        idx_255 = np.where(image[min_y + which_y, :] == 255)[0]
+        idx_255 = np.unique(np.where(image[min_y + which_y, :] == 255)[0])
         
         if len(idx_255) == 1:
             m_range = 1        
